@@ -62,7 +62,7 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           draft: false
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
             dist/Flightradar24_11.15.1_Business_arm64.apk
             dist/Flightradar24_11.15.1_Business_unlocked.xapk
