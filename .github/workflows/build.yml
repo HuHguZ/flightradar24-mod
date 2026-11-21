@@ -1,0 +1,70 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Ensure Android SDK components
+        shell: pwsh
+        run: |
+          $sdk = $env:ANDROID_HOME
+          if (-not $sdk) { $sdk = 'C:\Android\android-sdk'; $env:ANDROID_HOME = $sdk }
+          Write-Host "ANDROID_HOME=$sdk"
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          $needTools = -not (Test-Path (Join-Path $sdk 'build-tools'))
+          $needPlatform = -not (Get-ChildItem (Join-Path $sdk 'platforms') -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName 'android.jar') })
+          if ($needTools -or $needPlatform) {
+            if (-not (Test-Path $sdkmanager)) { throw 'sdkmanager not found' }
+            & $sdkmanager --install 'build-tools;36.0.0' 'platforms;android-36'
+            if ($LASTEXITCODE -ne 0) { throw 'sdkmanager failed' }
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_HOME=$sdk"
+
+      - name: Build apk
+        shell: pwsh
+        run: ./scripts/build.ps1
+
+      - name: Pack xapk
+        shell: pwsh
+        run: ./scripts/pack.ps1
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flightradar24-business-unlocked
+          path: |
+            dist/*.apk
+            dist/*.xapk
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          generate_release_notes: true
+          files: |
+            dist/Flightradar24_11.15.1_Business_arm64.apk
+            dist/Flightradar24_11.15.1_Business_unlocked.xapk
