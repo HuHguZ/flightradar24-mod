@@ -126,8 +126,186 @@ public final class Fr24OpenData {
         }
     }
 
-    // ── Extended Mode S ────────────────────────────────────────────────────────
+    /**
+     * Called wherever the UI model is mapped to a ClickhandlerAircraftInfo.
+     * The map screen builds the very same object twice, and only the instance created
+     * there is the one the details screen reads, so it has to be filled in again.
+     */
+    public static void enrichAircraftObject(Object aircraftInfo) {
+        try {
+            if (aircraftInfo == null) {
+                return;
+            }
+            String hex = normalizeHex(asString(getField(aircraftInfo, "icaoAddress")));
+            String reg = normalizeReg(asString(getField(aircraftInfo, "reg")));
+            Log.d(TAG, "enrich info object id=" + System.identityHashCode(aircraftInfo) + " reg=" + reg + " hex=" + hex);
+            enrichAircraft(aircraftInfo, reg, hex);
+        } catch (Throwable t) {
+            Log.w(TAG, "aircraft object enrich failed", t);
+        }
+    }
 
+    // ── Getter fallbacks ──────────────────────────────────────────────────────
+    // The map screen copies the aircraft model several times while mapping, and which
+    // copy the details screen ends up reading is not predictable. Filling the fields in
+    // at construction is therefore not enough, so the getters fall back to the local
+    // database as well. Each one is patched to call into here instead of returning the
+    // raw field.
+
+    public static String msn(Object info) {
+        try {
+            String current = asString(getField(info, "msn"));
+            if (!isUnset(current)) {
+                return current;
+            }
+            String[] row = lookupRow(info);
+            String value = row == null ? null : row[0];
+            if (!isUnset(value)) {
+                setField(info, "msn", value);
+                setField(info, "msnAvailable", Boolean.TRUE);
+                return value;
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "msn getter failed", t);
+        }
+        return null;
+    }
+
+    public static Boolean msnAvailable(Object info) {
+        try {
+            // Derive the flag from the value: the copies the map screen makes carry the
+            // string over but drop the availability flag, so trusting the stored flag
+            // hides a serial that is actually known.
+            boolean available = !isUnset(msn(info));
+            return available ? Boolean.TRUE : Boolean.FALSE;
+        } catch (Throwable t) {
+            return Boolean.FALSE;
+        }
+    }
+
+    public static Integer acAge(Object info) {
+        try {
+            Object current = getField(info, "acAge");
+            if (!isUnset(current)) {
+                return (Integer) current;
+            }
+            String[] row = lookupRow(info);
+            if (row != null && !isUnset(row[1])) {
+                Integer age = ageFromBuilt(row[1]);
+                if (age != null) {
+                    setField(info, "acAge", age);
+                    setField(info, "ageAvailable", Boolean.TRUE);
+                    if (isBlank(getField(info, "acBirthDate"))) {
+                        setField(info, "acBirthDate", row[1]);
+                    }
+                    return age;
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "age getter failed", t);
+        }
+        return null;
+    }
+
+    public static Boolean ageAvailable(Object info) {
+        try {
+            return acAge(info) == null ? Boolean.FALSE : Boolean.TRUE;
+        } catch (Throwable t) {
+            return Boolean.FALSE;
+        }
+    }
+
+    private static String[] lookupRow(Object info) {
+        SQLiteDatabase db = aircraftDb;
+        if (db == null || info == null) {
+            return null;
+        }
+        try {
+            String reg = normalizeReg(asString(getField(info, "reg")));
+            if (reg == null) {
+                reg = normalizeReg(asString(getField(info, "registration")));
+            }
+            String hex = normalizeHex(asString(getField(info, "icaoAddress")));
+            if (hex == null) {
+                hex = normalizeHex(asString(getField(info, "hex")));
+            }
+            return queryAircraft(db, reg, hex);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // ── Aircraft profile panel ────────────────────────────────────────────────
+    // The details screen does not read the clickhandler payload at all, it has its own
+    // FlightInfoAircraft model, so its getters are patched to the same lookup.
+
+    public static String profileSerialNo(Object info) {
+        try {
+            String current = asString(getField(info, "serialNo"));
+            if (!isUnset(current)) {
+                return current;
+            }
+            String[] row = lookupRow(info);
+            String value = row == null ? null : row[0];
+            return isUnset(value) ? "" : value;
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    public static boolean profileSerialNoAvailable(Object info) {
+        try {
+            if (!isUnset(getField(info, "serialNo"))) {
+                return true;
+            }
+            return !isUnset(profileSerialNo(info));
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static int profileAgeYears(Object info) {
+        try {
+            String built = null;
+            Object age = getField(info, "age");
+            if (age != null) {
+                Object years = getField(age, "years");
+                if (years instanceof Number && ((Number) years).intValue() > 0) {
+                    return ((Number) years).intValue();
+                }
+                built = asString(getField(age, "date"));
+            }
+            if (isUnset(built)) {
+                String[] row = lookupRow(info);
+                built = row == null ? null : row[1];
+            }
+            Integer age2 = isUnset(built) ? null : ageFromBuilt(built);
+            return age2 == null ? -1 : age2;
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    public static boolean profileAgeAvailable(Object info) {
+        return profileAgeYears(info) >= 0;
+    }
+
+    public static String profileAgeDate(Object info) {
+        try {
+            Object age = getField(info, "age");
+            String built = age == null ? null : asString(getField(age, "date"));
+            if (!isUnset(built)) {
+                return built;
+            }
+            String[] row = lookupRow(info);
+            String value = row == null ? null : row[1];
+            return isUnset(value) ? "" : value;
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    // ── Extended Mode S ────────────────────────────────────────────────────────
     private static void enrichEms(Object flightInfo, String hex) throws Exception {
         if (hex == null) {
             return;
@@ -428,9 +606,12 @@ public final class Fr24OpenData {
         if (db == null) {
             return;
         }
-        // The server sends empty strings rather than nulls for withheld values.
-        boolean needMsn = isBlank(getField(aircraftInfo, "msn"));
-        boolean needAge = getField(aircraftInfo, "acAge") == null;
+        // The server withholds these with an empty string, "N/A" or a null age.
+        Object rawMsn = getField(aircraftInfo, "msn");
+        Object rawAge = getField(aircraftInfo, "acAge");
+        boolean needMsn = isUnset(rawMsn);
+        boolean needAge = isUnset(rawAge);
+        Log.d(TAG, "msn=\"" + rawMsn + "\" age=" + rawAge + " need=" + needMsn + "/" + needAge);
         if (!needMsn && !needAge) {
             return;
         }
@@ -850,6 +1031,18 @@ public final class Fr24OpenData {
 
     private static boolean isBlank(Object value) {
         return value == null || value.toString().trim().isEmpty();
+    }
+
+    /** Blanks, "N/A", "-" and a zero age all mean the server withheld the value. */
+    private static boolean isUnset(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue() <= 0;
+        }
+        String text = value.toString().trim();
+        return text.isEmpty() || text.equalsIgnoreCase("n/a") || text.equals("-") || text.equalsIgnoreCase("unknown");
     }
 
     private static String asString(Object value) {
