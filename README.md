@@ -81,6 +81,9 @@ own key if you want a stable-update signature.
 
 CI does the same on every push (artifacts) and on every `v*` tag (release assets).
 
+Per-script description, including the device probes and the map-key swap helper:
+[scripts/README.md](scripts/README.md).
+
 ## Layout
 
 ```
