@@ -8,8 +8,19 @@ money or an account.
 [![build](https://github.com/HuHguZ/flightradar24-mod/actions/workflows/build.yml/badge.svg)](https://github.com/HuHguZ/flightradar24-mod/actions/workflows/build.yml)
 
 > **Скачать:** возьмите готовый файл из [Releases](https://github.com/HuHguZ/flightradar24-mod/releases/latest).
-> Ставить `.xapk` через XAPK Installer / APKPure, либо `.apk` + сплиты. Перед установкой
-> удалите официальное приложение: подпись не совпадает с Play-овой.
+> Обычный APK ставится напрямую; XAPK — вариант для XAPK Installer / APKPure.
+> Перед установкой удалите официальное приложение: подпись не совпадает с Play-овой.
+
+## Install
+
+1. Uninstall the official `com.flightradar24free` FIRST — the signature differs, so an update
+   over the store build fails.
+2. Install `Flightradar24_11.15.1_Business_arm64.apk` (or the XAPK if you prefer an installer).
+3. On first launch accept the data-processing dialog to reach the map.
+
+The build is arm64 only, because the source package ships no other ABI. The APK is
+self-contained: native libraries and density resources are merged inside it.
+
 
 ## What is unlocked
 
@@ -63,6 +74,7 @@ powershell -ExecutionPolicy Bypass -File scripts\pack.ps1
 ```
 
 Output lands in `dist/`. The build decodes the bundled XAPK, repairs the split resources,
+merges the native libraries and resource set into the base apk so it installs standalone,
 copies the patch overlay, compiles the extension to `classes5.dex`, assembles, aligns and
 signs with the throwaway key in `keystore/` (alias and password `fr24mod`). Sign with your
 own key if you want a stable-update signature.

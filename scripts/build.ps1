@@ -4,6 +4,7 @@
 & "$PSScriptRoot\extract.ps1"
 & "$PSScriptRoot\fix-res.ps1"
 & "$PSScriptRoot\apply-overlay.ps1"
+& "$PSScriptRoot\merge-splits.ps1"
 & "$PSScriptRoot\build-ext.ps1"
 
 $unsigned = Join-Path $out 'unsigned.apk'
