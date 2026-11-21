@@ -31,14 +31,9 @@ jobs:
           if (-not $sdk) { $sdk = 'C:\Android\android-sdk'; $env:ANDROID_HOME = $sdk }
           Write-Host "ANDROID_HOME=$sdk"
           $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
-          $needTools = -not (Test-Path (Join-Path $sdk 'build-tools'))
-          $needPlatform = -not (Get-ChildItem (Join-Path $sdk 'platforms') -Directory -ErrorAction SilentlyContinue |
-            Where-Object { Test-Path (Join-Path $_.FullName 'android.jar') })
-          if ($needTools -or $needPlatform) {
-            if (-not (Test-Path $sdkmanager)) { throw 'sdkmanager not found' }
-            & $sdkmanager --install 'build-tools;36.0.0' 'platforms;android-36'
-            if ($LASTEXITCODE -ne 0) { throw 'sdkmanager failed' }
-          }
+          if (-not (Test-Path $sdkmanager)) { throw 'sdkmanager not found' }
+          & $sdkmanager --install 'build-tools;36.0.0' 'platforms;android-36'
+          if ($LASTEXITCODE -ne 0) { throw 'sdkmanager failed' }
           Add-Content -Path $env:GITHUB_ENV -Value "ANDROID_HOME=$sdk"
 
       - name: Build apk

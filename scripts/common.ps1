@@ -40,7 +40,8 @@ $apksigner = Join-Path $buildToolsDir 'apksigner.bat'
 $d8 = Join-Path $buildToolsDir 'd8.bat'
 
 $androidJar = Get-ChildItem (Join-Path $sdkRoot 'platforms') -Directory -ErrorAction SilentlyContinue |
-    Sort-Object { [int]($_.Name -replace 'android-', '') } -Descending |
+    Where-Object { $_.Name -match '^android-(\d+)' } |
+    Sort-Object { [int]($_.Name -replace '^android-', '' -replace '^(\d+).*$', '$1') } -Descending |
     ForEach-Object { Join-Path $_.FullName 'android.jar' } |
     Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $androidJar) { throw 'No android.jar in the SDK platforms.' }
